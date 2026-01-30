@@ -2,7 +2,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // MongoDB Connection String từ .env
-const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://cuongdev1108:cuonghk200811%40@cluster0.7ushxcv.mongodb.net/?appName=Cluster0';
+if (!process.env.MONGODB_URI) {
+  console.error('❌ MONGODB_URI not found in environment variables!');
+  console.error('💡 Create backend/.env.local file with MONGODB_URI');
+  process.exit(1);
+}
+const mongoUri = process.env.MONGODB_URI;
 
 import express from 'express';
 import mongoose from 'mongoose';
@@ -10,12 +15,17 @@ import cors from 'cors';
 import { Server } from 'socket.io';
 import http from 'http';
 
+// Import middleware
+import { httpLogger, default as logger } from './middleware/logger.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+
 // Import routes
 import newsRoutes from './routes/news.js';
 import teacherRoutes from './routes/teachers.js';
 import clubRoutes from './routes/clubs.js';
 import galleryRoutes from './routes/gallery.js';
 import eventRoutes from './routes/events.js';
+import authRoutes from './routes/auth.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -29,6 +39,7 @@ const io = new Server(server, {
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(httpLogger);
 
 // MongoDB Connection
 mongoose.connect(mongoUri)
@@ -40,6 +51,7 @@ mongoose.connect(mongoUri)
   });
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/clubs', clubRoutes);
@@ -50,6 +62,12 @@ app.use('/api/events', eventRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Server is running ✅' });
 });
+
+// 404 Not Found Handler
+app.use('*', notFoundHandler);
+
+// Error Handler (must be last)
+app.use(errorHandler);
 
 // Socket.io Real-time Connection
 io.on('connection', (socket) => {
